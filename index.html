@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SSSノーツエディタ</title>
+<title>譜面エディタ</title>
 <style>
 :root{--bg:#f2f3f8;--pn:#fff;--bd:#dfe2ec;--fg:#1f2433;--mu:#6b7287;--ac:#3b82f6}
 *{box-sizing:border-box}
@@ -89,6 +89,7 @@ aside label.chk input{width:auto}
   <button data-a="m_place" class="on">⊕ 配置</button><button data-a="m_select">▭ 選択</button>
   <span class="sep"></span>
   <button data-a="all">全選択</button><button data-a="copy">コピー</button><button data-a="cut">切り取り</button><button data-a="paste">貼り付け</button><button data-a="del">選択を削除</button><button data-a="flip">⇄ 左右反転</button>
+  <button data-a="nl" aria-label="選択を左へ">◀</button><button data-a="nu" aria-label="選択を先の時間へ">▲</button><button data-a="nd" aria-label="選択を前の時間へ">▼</button><button data-a="nr" aria-label="選択を右へ">▶</button>
   <span class="sep"></span>
   <label>BPM <input id="bpm" type="number" value="120" min="1" step="any"></label>
   <label>LPB <input id="lpb" type="number" value="4" min="1" max="16"></label>
@@ -127,7 +128,7 @@ aside label.chk input{width:auto}
     <section><h3>編集モードの説明</h3>
       <p>配置: 空いている所のクリックでノーツを置き、ノーツや点のクリックで、その1つだけを削除します(ロングは残りが1点になると全体が消えます)。ロングの点のドラッグで、その1点だけを移動します。点を右クリックするとロングノーツ全体の速度を設定でき、ロングの帯を右クリックすると、中間点の作成かロングノーツの削除を選べます。種類が「ロング」なら続けてクリックして中間点と終点を足し、「ロング終了」(Enter・Esc・右クリックでも可)で確定します。</p>
       <p>選択: クリックかドラッグで選びます。Shiftで追加選択。</p>
-      <p>Space 再生・停止 / 数字キー(1〜9) ノーツ種の切り替え / PgUp・PgDn LPBを1ずつ増減 / S・W 前・次の小節の先頭へ / Q 赤線の位置にBPM変更を置く(ダイアログでBPMを入力) / ↑↓・ホイール 移動 / (タッチ)縦ドラッグで譜面を移動・2本指で拡大縮小・長押しで右クリックと同じ操作 / Ctrl+ホイール 拡大縮小 / Ctrl+A 全選択 / Ctrl+C・X・V コピー・切り取り・貼り付け(赤線の位置へ) / Delete 削除 / Ctrl+Z・Y 元に戻す・やり直し / Ctrl+S 保存(Shift併用で名前を付けて保存) / Alt+矢印 選択中のノーツを1マス移動</p>
+      <p>Space 再生・停止 / 数字キー(1〜9) ノーツ種の切り替え / PgUp・PgDn LPBを1ずつ増減 / S・W 前・次の小節の先頭へ / Q 赤線の位置にBPM変更を置く(ダイアログでBPMを入力) / ↑↓・ホイール 移動 / (タッチ)縦ドラッグで譜面を移動・2本指で拡大縮小・長押しで右クリックと同じ操作 / Ctrl+ホイール 拡大縮小 / Ctrl+A 全選択 / Ctrl+C・X・V コピー・切り取り・貼り付け(赤線の位置へ) / Delete 削除 / Ctrl+Z・Y 元に戻す・やり直し / Ctrl+S 保存(Shift併用で名前を付けて保存) / Alt+矢印・画面の◀▲▼▶ 選択中のノーツを1マス移動</p>
     </section>
   </aside>
 </main>
@@ -163,7 +164,7 @@ const DEF=JSON.stringify([
   {id:5,name:'W',color:'#f97316',shape:'square',long:false,fine:false},
   {id:6,name:'連打',color:'#8b5cf6',shape:'square',long:true,fine:false}]);
 let tempo=[{n:0,l:4,bpm:120}],Tc=[0],types=JSON.parse(DEF),curT=1,clapOn=true,clapVol=.5,ls=0;
-let W=0,H=0,notes=[],buf=null,peaks=[],t=0,pps=160,playing=false,t0=0,c0=0,src=null,pend=null,hover=null,sel=new Set(),mode='place',drag=null,hp=null,ps=new Set(),clip=[],box=null,suppress=false,undo=[],redo=[],msgText='',lastSt='';
+let W=0,H=0,notes=[],buf=null,peaks=[],t=0,pps=160,playing=false,t0=0,c0=0,src=null,pend=null,hover=null,sel=new Set(),mode='place',drag=null,hp=null,ps=new Set(),clip=[],mom=0,box=null,suppress=false,undo=[],redo=[],msgText='',lastSt='';
 
 const bpm=()=>tempo[0].bpm;
 const lpb=()=>Math.max(1,Math.min(16,+$('lpb').value|0||4));
@@ -199,7 +200,7 @@ function play(){
   t0=t;c0=AC.currentTime;ls=t;playing=true;
 }
 function stop(){if(src){src.onended=null;try{src.stop()}catch(e){}src=null}playing=false}
-function seek(v){const was=playing;stop();t=clamp(v,0,dur());if(was)play()}
+function seek(v){stopMom();const was=playing;stop();t=clamp(v,0,dur());if(was)play()}
 
 function pos(ev){
   const r=cv.getBoundingClientRect(),{lw,x0,py}=geo(),x=ev.clientX-r.left,y=ev.clientY-r.top;
@@ -369,6 +370,10 @@ const partsOf=n=>[n,...(n.p||[])];
 function setPs(l){ps=new Set(l);sel=new Set(notes.filter(n=>partsOf(n).some(x=>ps.has(x))))}
 const rmPs=h=>setPs([...ps].filter(x=>!partsOf(h).includes(x)));
 const lst=()=>[...sel].some(n=>typeOf(n).fine)?.25:1;
+function nudge(k){
+  if(!sel.size)return msg('先にノーツを選択してください');
+  push();shift(k==='arrowleft'?-lst():k==='arrowright'?lst():0,k==='arrowup'?1/lpb():k==='arrowdown'?-1/lpb():0);sortN();
+}
 function shift(dl,db){
   const os=[],ff=[];let lb=-1e9,ub=1e9;
   for(const n of notes){
@@ -475,12 +480,26 @@ cv.addEventListener('wheel',ev=>{
   if(ev.ctrlKey)pps=clamp(pps*(ev.deltaY<0?1.1:1/1.1),30,1200);
   else seek(t-ev.deltaY/pps);
 },{passive:false});
+function stopMom(){if(mom){cancelAnimationFrame(mom);mom=0}}
+function startMom(v){
+  let last=performance.now();
+  const step=now=>{
+    const dt=Math.min(now-last,50);last=now;
+    if(playing){mom=0;return}
+    t=clamp(t+v/pps*dt,0,dur());
+    v*=Math.pow(.998,dt);
+    if(Math.abs(v)<.02||t<=0||t>=dur()){mom=0;return}
+    mom=requestAnimationFrame(step);
+  };
+  mom=requestAnimationFrame(step);
+}
 let tc=null;
 const tdist=ts=>Math.hypot(ts[0].clientX-ts[1].clientX,ts[0].clientY-ts[1].clientY);
 cv.addEventListener('touchstart',ev=>{
   if(tc)clearTimeout(tc.lp);
+  const was=!!mom;stopMom();
   if(ev.touches.length>=2){tc={zoom:true,d:tdist(ev.touches),p:pps};return}
-  const q=ev.touches[0],o={x:q.clientX,y:q.clientY,t,on:false,long:false};
+  const q=ev.touches[0],o={x:q.clientX,y:q.clientY,t,on:false,long:false,st:was,sm:[]};
   o.lp=setTimeout(()=>{if(tc===o&&!o.on){o.long=true;ctx({clientX:o.x,clientY:o.y})}},500);
   tc=o;
 },{passive:true});
@@ -494,12 +513,17 @@ cv.addEventListener('touchmove',ev=>{
     tc.on=true;clearTimeout(tc.lp);if(playing)stop();
   }
   ev.preventDefault();seek(tc.t+(q.clientY-tc.y)/pps);
+  tc.sm.push({n:performance.now(),y:q.clientY});if(tc.sm.length>8)tc.sm.shift();
 },{passive:false});
 cv.addEventListener('touchend',ev=>{
   if(tc){
     clearTimeout(tc.lp);
-    if(tc.long&&ev.cancelable)ev.preventDefault();
+    if((tc.long||tc.st)&&ev.cancelable)ev.preventDefault();
     if(tc.on||tc.zoom){suppress=true;setTimeout(()=>{suppress=false},400)}
+    if(tc.on&&!tc.zoom&&ev.touches.length===0&&tc.sm.length>1){
+      const now=performance.now(),l=tc.sm[tc.sm.length-1],f=tc.sm.find(x=>x.n>=now-100)||l;
+      if(now-l.n<60&&l.n-f.n>10){const v=clamp((l.y-f.y)/(l.n-f.n),-6,6);if(Math.abs(v)>.1)startMom(v)}
+    }
   }
   if(ev.touches.length===0)tc=null;
 });
@@ -620,7 +644,7 @@ addEventListener('keydown',ev=>{
   else if(!c&&!ev.altKey&&(k==='s'||k==='w')){const b=sec2beat(t),cb=Math.floor(b/4+1e-4)*4;seek(beat2sec(Math.max(0,k==='w'?cb+4:b-cb<1e-4?cb-4:cb)))}
   else if(!c&&!ev.altKey&&k==='q'){ev.preventDefault();bpmKey()}
   else if(k==='pageup'||k==='pagedown'){ev.preventDefault();$('lpb').value=clamp(lpb()+(k==='pageup'?1:-1),1,16)}
-  else if(ev.altKey&&k.startsWith('arrow')&&sel.size){ev.preventDefault();push();shift(k==='arrowleft'?-lst():k==='arrowright'?lst():0,k==='arrowup'?1/lpb():k==='arrowdown'?-1/lpb():0);sortN()}
+  else if(ev.altKey&&k.startsWith('arrow')&&sel.size){ev.preventDefault();nudge(k)}
   else if(k==='arrowup'){ev.preventDefault();mv(c?1:1/lpb())}
   else if(k==='arrowdown'){ev.preventDefault();mv(-(c?1:1/lpb()))}
   else if(k==='escape'||k==='enter'){if(pend)commit();else setPs([])}
@@ -676,6 +700,7 @@ const ACT={
   clap:()=>{clapOn=!clapOn;$('cp').classList.toggle('on',clapOn)},
   addtype:()=>{push();const id=Math.max(...types.map(x=>x.id))+1;types.push({id,name:'種類'+id,color:'#10b981',shape:'circle',long:false});curT=id;buildTabs()},
   deltype:()=>{if(types.length<2)return msg('最後の種類は削除できません');if(notes.some(n=>n.t===curT))return msg('この種類のノーツがあるため削除できません');push();types=types.filter(x=>x.id!==curT);curT=types[0].id;buildTabs()},
+  nl:()=>nudge('arrowleft'),nr:()=>nudge('arrowright'),nu:()=>nudge('arrowup'),nd:()=>nudge('arrowdown'),
   p1:()=>openPanel('a1'),p2:()=>openPanel('a2'),pc:()=>closePanel(),
   addbpm:()=>{closePanel();bpmKey()},
   delbpm:()=>{const i=segOfSec(t-offS());if(!i)return msg('先頭のBPMは削除できません');push();tempo.splice(i,1);retempo()},
