@@ -60,7 +60,8 @@ aside label.chk input{width:auto}
 #dt label{display:flex;flex-direction:column;gap:2px;color:var(--mu);font-size:12px}
 .ic.circle{border-radius:50%}
 .ic.diamond{transform:rotate(45deg) scale(.85)}
-.pclose,.cb{display:none}
+.pclose,.cb,.wo{display:none}
+@media (min-width:1101px) and (orientation:landscape){.wo{display:inline-flex}}
 #pbk{display:none;position:fixed;inset:0;z-index:29;background:rgba(0,0,0,.35)}
 @media (orientation:portrait),(max-width:1100px){
   main{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
@@ -77,7 +78,7 @@ aside label.chk input{width:auto}
 <div class="bar">
   <label class="btn">音声を開く<input id="fa" type="file" accept="audio/*"></label>
   <label class="btn">譜面を開く<input id="fj" type="file" accept=".json,application/json"></label>
-  <button id="nd">譜面フォルダ設定</button><button id="sv">保存</button><button id="sa">名前を付けて保存</button><button id="cd">別難易度にコピー</button>
+  <button id="nd">譜面フォルダ設定</button><button id="sd" class="wo" title="同じ曲の別の譜面を横に並べて開きます(最大3つ)">＋ 譜面を横に開く</button><button id="xd" class="wo" hidden title="操作中の譜面を閉じます">× この譜面を閉じる</button><input id="fj2" type="file" accept=".json,application/json" hidden><button id="sv">保存</button><button id="sa">名前を付けて保存</button><button id="cd">別難易度にコピー</button>
   <button id="pl" class="pri">▶ 再生・停止</button>
   <span id="tm">0:00.000</span>
   <button id="cp" data-a="clap" class="on">♪ クラップ</button>
@@ -128,7 +129,7 @@ aside label.chk input{width:auto}
     <section><h3>編集モードの説明</h3>
       <p>配置: 空いている所のクリックでノーツを置き、ノーツや点のクリックで、その1つだけを削除します(ロングは残りが1点になると全体が消えます)。ロングの点のドラッグで、その1点だけを移動します。点を右クリックするとロングノーツ全体の速度を設定でき、ロングの帯を右クリックすると、中間点の作成かロングノーツの削除を選べます。種類が「ロング」なら続けてクリックして中間点と終点を足し、「ロング終了」(Enter・Esc・右クリックでも可)で確定します。</p>
       <p>選択: クリックかドラッグで選びます。Shiftで追加選択。</p>
-      <p>Space 再生・停止 / 数字キー(1〜9) ノーツ種の切り替え / PgUp・PgDn LPBを1ずつ増減 / S・W 前・次の小節の先頭へ / Q 赤線の位置にBPM変更を置く(ダイアログでBPMを入力) / ↑↓・ホイール 移動 / (タッチ)縦ドラッグで譜面を移動・2本指で拡大縮小・長押しで右クリックと同じ操作 / Ctrl+ホイール 拡大縮小 / Ctrl+A 全選択 / Ctrl+C・X・V コピー・切り取り・貼り付け(赤線の位置へ) / Delete 削除 / Ctrl+Z・Y 元に戻す・やり直し / Ctrl+S 保存(Shift併用で名前を付けて保存) / Alt+矢印・画面の◀▲▼▶ 選択中のノーツを1マス移動</p>
+      <p>Space 再生・停止 / 数字キー(1〜9) ノーツ種の切り替え / PgUp・PgDn LPBを1ずつ増減 / S・W 前・次の小節の先頭へ / Q 赤線の位置にBPM変更を置く(ダイアログでBPMを入力) / ↑↓・ホイール 移動 / 「＋ 譜面を横に開く」で同じ曲の別の譜面を最大3つ並べて編集(横に広い画面のみ。クリックした列が操作対象になり、見出しが青くなります。保存・各ボタン・クラップ音は操作対象の譜面に効き、コピーしたノーツは別の譜面へ貼り付けられます) / (タッチ)縦ドラッグで譜面を移動・2本指で拡大縮小・長押しで右クリックと同じ操作 / Ctrl+ホイール 拡大縮小 / Ctrl+A 全選択 / Ctrl+C・X・V コピー・切り取り・貼り付け(赤線の位置へ) / Delete 削除 / Ctrl+Z・Y 元に戻す・やり直し / Ctrl+S 保存(Shift併用で名前を付けて保存) / Alt+矢印・画面の◀▲▼▶ 選択中のノーツを1マス移動</p>
     </section>
   </aside>
 </main>
@@ -165,11 +166,21 @@ const DEF=JSON.stringify([
   {id:6,name:'連打',color:'#8b5cf6',shape:'square',long:true,fine:false}]);
 let tempo=[{n:0,l:4,bpm:120}],Tc=[0],types=JSON.parse(DEF),curT=1,clapOn=true,clapVol=.5,ls=0;
 let W=0,H=0,notes=[],buf=null,peaks=[],t=0,pps=160,playing=false,t0=0,c0=0,src=null,pend=null,hover=null,sel=new Set(),mode='place',drag=null,hp=null,ps=new Set(),clip=[],mom=0,box=null,suppress=false,undo=[],redo=[],msgText='',lastSt='';
+let LP=4,OF=0,ai=0,gi=0;
+const mkDoc=()=>({notes:[],tempo:[{n:0,l:4,bpm:120}],Tc:[0],types:JSON.parse(DEF),curT:1,LANES:5,LP:4,OF:0,pend:null,ps:new Set(),sel:new Set(),undo:[],redo:[],fh:null,dif:null,leg:false,dirty:false});
+const docs=[mkDoc()];
+const MQ=matchMedia('(orientation:portrait),(max-width:1100px)');
+const visIdx=()=>MQ.matches?[ai]:docs.map((_,i)=>i);
+function sv(){const d=docs[gi];d.notes=notes;d.tempo=tempo;d.Tc=Tc;d.types=types;d.curT=curT;d.LANES=LANES;d.LP=LP;d.OF=OF;d.pend=pend;d.ps=ps;d.sel=sel;d.undo=undo;d.redo=redo}
+function applyDoc(d){notes=d.notes;tempo=d.tempo;Tc=d.Tc;types=d.types;curT=d.curT;LANES=d.LANES;LP=d.LP;OF=d.OF;pend=d.pend;ps=d.ps;sel=d.sel;undo=d.undo;redo=d.redo}
+function ld(i){if(gi===i)return;sv();applyDoc(docs[i]);gi=i}
+const setLP=v=>{LP=v;$('lpb').value=v};
+const setOF=v=>{OF=+v||0;$('off').value=OF};
 
 const bpm=()=>tempo[0].bpm;
-const lpb=()=>Math.max(1,Math.min(16,+$('lpb').value|0||4));
+const lpb=()=>LP;
 const sr=()=>buf?buf.sampleRate:44100;
-const offS=()=>(+$('off').value||0)/1000;
+const offS=()=>OF/1000;
 const sec=(n,l)=>beat2sec(n/l);
 const typeOf=n=>types.find(x=>x.id===n.t)||types[0];
 function retempo(){tempo.sort((a,b)=>a.n/a.l-b.n/b.l);Tc=[0];for(let i=1;i<tempo.length;i++)Tc[i]=Tc[i-1]+(tempo[i].n/tempo[i].l-tempo[i-1].n/tempo[i-1].l)*60/tempo[i-1].bpm}
@@ -182,10 +193,11 @@ const dur=()=>buf?buf.duration:600;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const fmt=x=>Math.floor(x/60)+':'+(x%60).toFixed(3).padStart(6,'0');
 const snap=()=>JSON.stringify({notes,tempo,types});
-const push=()=>{undo.push(snap());if(undo.length>200)undo.shift();redo=[]};
+const push=()=>{docs[gi].dirty=true;undo.push(snap());if(undo.length>200)undo.shift();redo=[]};
 const sortN=()=>notes.sort((a,b)=>a.n/a.l-b.n/b.l);
 const msg=s=>{msgText=s;setTimeout(()=>{if(msgText===s)msgText=''},3500)};
-const geo=()=>{const lw=Math.min(150,(W-40)/LANES);return{lw,x0:(W-lw*LANES)/2,py:H*.8}};
+const colRect=i=>{const v=visIdx(),k=Math.max(0,v.indexOf(i)),w=W/v.length;return{x:k*w,w}};
+const geo=()=>{const c=colRect(gi),lw=Math.min(150,(c.w-40)/LANES);return{lw,x0:c.x+(c.w-lw*LANES)/2,py:H*.8}};
 
 function rs(){const d=devicePixelRatio||1,r=cv.getBoundingClientRect();W=r.width;H=r.height;cv.width=W*d;cv.height=H*d;g.setTransform(d,0,0,d,0,0)}
 
@@ -218,10 +230,8 @@ function head(x,y,lw,stroke,sh){
 const pts=n=>[{n:n.n,l:n.l,b:n.b},...(n.p||[])];
 const beatOf=q=>q.n/q.l;
 
-function draw(){
-  if(playing){t=t0+(AC.currentTime-c0);if(t>=dur()){stop();t=dur()}}
-  if(playing)sched();
-  g.clearRect(0,0,W,H);
+function drawDoc(i,k,N){
+  const hv=i===ai?hover:null;
   const{lw,x0,py}=geo(),Y=s=>py-(s-t)*pps,cx=b=>x0+lw*(b+.5),w=lw*LANES;
   for(let i=0;i<LANES;i++){g.fillStyle=i%2?'#f1f2f8':'#fff';g.fillRect(x0+lw*i,0,lw,H)}
   const sTop=t+py/pps,sBot=t-(H-py)/pps;
@@ -259,11 +269,28 @@ function draw(){
     drawN(pend);
     const q=P(pend),a=q[q.length-1],lp=pts(pend).pop();
     const PT=typeOf(pend);g.strokeStyle=PT.color;g.lineWidth=2;head(a.x,a.y,lw,true,PT.shape);
-    if(hover&&!playing&&beatOf(hover)>beatOf(lp)){g.fillStyle=PT.color;g.globalAlpha=.15;band(a,{x:cx(hover.b),y:Y(sec(hover.n,hover.l))});g.globalAlpha=1}
+    if(hv&&!playing&&beatOf(hv)>beatOf(lp)){g.fillStyle=PT.color;g.globalAlpha=.15;band(a,{x:cx(hv.b),y:Y(sec(hv.n,hv.l))});g.globalAlpha=1}
   }
-  if(hover&&!playing&&!box&&mode==='place'){const T=typeOf({t:pend?pend.t:curT});g.globalAlpha=.4;g.fillStyle=T.color;head(cx(hover.b),Y(sec(hover.n,hover.l)),lw,false,T.shape);g.globalAlpha=1}
-  if(box){g.fillStyle='rgba(59,130,246,.12)';g.strokeStyle=LN;g.lineWidth=1;g.fillRect(box.x0,box.y0,box.x1-box.x0,box.y1-box.y0);g.strokeRect(box.x0,box.y0,box.x1-box.x0,box.y1-box.y0)}
+  if(hv&&!playing&&!box&&mode==='place'){const T=typeOf({t:pend?pend.t:curT});g.globalAlpha=.4;g.fillStyle=T.color;head(cx(hv.b),Y(sec(hv.n,hv.l)),lw,false,T.shape);g.globalAlpha=1}
+  if(box&&i===ai){g.fillStyle='rgba(59,130,246,.12)';g.strokeStyle=LN;g.lineWidth=1;g.fillRect(box.x0,box.y0,box.x1-box.x0,box.y1-box.y0);g.strokeRect(box.x0,box.y0,box.x1-box.x0,box.y1-box.y0)}
   g.strokeStyle='#e11d2e';g.lineWidth=2;g.beginPath();g.moveTo(x0-14,py);g.lineTo(x0+w+14,py);g.stroke();
+  if(N>1){
+    const c=colRect(i),dd=docs[i],lab=dd.dif?dd.dif+(dd.leg?' (legacy)':''):'譜面'+(k+1);
+    g.fillStyle=i===ai?'#3b82f6':'rgba(107,114,135,.85)';g.fillRect(c.x,0,c.w,22);
+    g.fillStyle='#fff';g.font='600 12px system-ui';g.textAlign='center';g.fillText(lab+(dd.dirty?' *':''),c.x+c.w/2,15);
+    g.font='11px system-ui';g.textAlign='right';
+    if(k>0){g.strokeStyle='rgba(60,70,110,.5)';g.lineWidth=1;g.beginPath();g.moveTo(c.x,0);g.lineTo(c.x,H);g.stroke()}
+  }
+}
+function draw(){
+  if(playing){t=t0+(AC.currentTime-c0);if(t>=dur()){stop();t=dur()}}
+  if(playing)sched();
+  g.clearRect(0,0,W,H);
+  const vis=visIdx(),N=vis.length;
+  vis.forEach((i,k)=>{ld(i);drawDoc(i,k,N)});
+  ld(ai);
+  if($('st').dataset.n!=N){$('st').dataset.n=N;$('st').style.top=N>1?'28px':'6px'}
+  {const xh=docs.length<2;if($('xd').hidden!==xh)$('xd').hidden=xh}
   const s=`LPB ${lpb()}  BPM ${bpmAt(t)}  notes ${notes.length}  ${ps.size?ps.size+'個選択中  ':''}${buf?'':'(音声未読み込み: 無音で編集できます)  '}${msgText}`;
   if(s!==lastSt){$('st').textContent=s;lastSt=s}
   $('tm').textContent=fmt(t);$('end').hidden=!pend;
@@ -418,6 +445,7 @@ $('dx').onclick=()=>{$('dt').hidden=true};
 $('dt').addEventListener('keydown',e=>{if(e.key==='Enter')$('dok').click();else if(e.key==='Escape')$('dt').hidden=true});
 const rel=ev=>{const r=cv.getBoundingClientRect();return{x:ev.clientX-r.left,y:ev.clientY-r.top}};
 cv.addEventListener('mousedown',ev=>{
+  pickDoc(ev);
   if(ev.button!==0||pend)return;
   {const p0=pos(ev),h0=p0&&hit(p0),q0=rel(ev);if(h0&&!(ev.ctrlKey||ev.metaKey)){drag={h:h0,pr:hp?[hp]:partsOf(h0),one:!!(hp&&h0.p&&h0.p.length),x:q0.x,y:q0.y,on:false,al:0,ab:0,s:gp(ev)};return}}
   if(ev.ctrlKey||ev.metaKey||mode==='select'){const q=rel(ev);box={x0:q.x,y0:q.y,x1:q.x,y1:q.y,add:ev.shiftKey}}
@@ -472,8 +500,8 @@ function ctx(ev){
   if(hp||!(h.p&&h.p.length)){const pr=hp?[hp]:partsOf(h);if(!pr.every(x=>ps.has(x)))setPs(pr);openDetail(ev.clientX,ev.clientY);return}
   openMenu(ev.clientX,ev.clientY,h,p);
 }
-cv.addEventListener('contextmenu',ev=>{ev.preventDefault();ctx(ev)});
-cv.addEventListener('mousemove',ev=>{hover=pos(ev)});
+cv.addEventListener('contextmenu',ev=>{ev.preventDefault();pickDoc(ev);ctx(ev)});
+cv.addEventListener('mousemove',ev=>{hover=docAt(ev)===ai?pos(ev):null});
 cv.addEventListener('mouseleave',()=>{hover=null});
 cv.addEventListener('wheel',ev=>{
   ev.preventDefault();
@@ -498,6 +526,7 @@ const tdist=ts=>Math.hypot(ts[0].clientX-ts[1].clientX,ts[0].clientY-ts[1].clien
 cv.addEventListener('touchstart',ev=>{
   if(tc)clearTimeout(tc.lp);
   const was=!!mom;stopMom();
+  if(ev.touches.length<2)pickDoc(ev.touches[0]);
   if(ev.touches.length>=2){tc={zoom:true,d:tdist(ev.touches),p:pps};return}
   const q=ev.touches[0],o={x:q.clientX,y:q.clientY,t,on:false,long:false,st:was,sm:[]};
   o.lp=setTimeout(()=>{if(tc===o&&!o.on){o.long=true;ctx({clientX:o.x,clientY:o.y})}},500);
@@ -531,7 +560,7 @@ cv.addEventListener('touchcancel',()=>{if(tc)clearTimeout(tc.lp);tc=null});
 
 function load(j){
   push();
-  $('nm').value=j.name||'';LANES=clamp(j.maxBlock|0||5,1,12);$('ln').value=LANES;$('bpm').value=j.BPM||120;$('off').value=j.offset||0;
+  $('nm').value=j.name||'';LANES=clamp(j.maxBlock|0||5,1,12);$('ln').value=LANES;$('bpm').value=j.BPM||120;setOF(j.offset||0);
   tempo=[{n:0,l:4,bpm:j.BPM||120},...(j.bpmChanges||[]).map(q=>({n:q.num,l:q.LPB||4,bpm:q.BPM}))];retempo();
   types=j.noteTypes&&j.noteTypes.length?j.noteTypes:JSON.parse(DEF);curT=types[0].id;buildTabs();
   notes=[];
@@ -541,12 +570,12 @@ function load(j){
     if(x.notes&&x.notes.length)o.p=x.notes.map(q=>({n:q.num,l:q.LPB||o.l,b:q.block}));
     notes.push(o);
   }
-  if(notes.length)$('lpb').value=notes[0].l;
-  sortN();pend=null;setPs([]);
+  if(notes.length)setLP(clamp(notes[0].l|0||4,1,16));
+  sortN();pend=null;setPs([]);docs[gi].dirty=false;
 }
 function exp(){
   const ty=n=>n.t||(n.p?2:1);
-  const o={name:$('nm').value,maxBlock:LANES,BPM:bpm(),offset:Math.round(+$('off').value||0),
+  const o={name:$('nm').value,maxBlock:LANES,BPM:bpm(),offset:Math.round(OF),
     notes:notes.map(n=>n.p
       ?{LPB:n.l,num:n.n,block:n.b,type:ty(n),speed:n.speed||1,notes:n.p.map(q=>({LPB:q.l,num:q.n,block:q.b,type:ty(n),speed:n.speed||1,notes:[]}))}
       :{LPB:n.l,num:n.n,block:n.b,type:ty(n),speed:n.speed||1,notes:[]})};
@@ -554,13 +583,14 @@ function exp(){
   if(JSON.stringify(types)!==DEF)o.noteTypes=types;
   return JSON.stringify(o);
 }
-let fh=null,dif=null,leg=false,dh=null,nd=null;
+let dh=null,nd=null;
+const setMeta=(d,h,name)=>{const m=parseName(name);d.fh=h;d.dif=m.d;d.leg=m.lg};
 const parseName=n=>{const m=n.match(/_(legacy_)?(NORMAL|HARD|MADNESS|SECRET)\.json$/i);return m?{d:m[2].toUpperCase(),lg:!!m[1]}:{d:null,lg:false}};
 function askDif(title){
   return new Promise(res=>{
     const d=$('dl'),bs=[...d.querySelectorAll('[data-d]')];
-    $('dlt').textContent=title;$('dlg').checked=leg;
-    bs.forEach(b=>b.classList.toggle('on',b.dataset.d===dif));
+    const d0=docs[ai];$('dlt').textContent=title;$('dlg').checked=d0.leg;
+    bs.forEach(b=>b.classList.toggle('on',b.dataset.d===d0.dif));
     d.hidden=false;(bs.find(b=>b.classList.contains('on'))||bs[0]).focus();
     const done=v=>{d.hidden=true;d.onclick=null;removeEventListener('keydown',esc,true);res(v)};
     const esc=e=>{if(e.key==='Escape'){e.stopPropagation();done(null)}};
@@ -569,23 +599,24 @@ function askDif(title){
   });
 }
 async function copyTo(){
+  const d=docs[ai];
   const r=await askDif('コピー先の難易度を選択');if(!r)return;
-  if(r.d===dif&&r.lg===leg)return msg('コピー元と同じ難易度です');
+  if(r.d===d.dif&&r.lg===d.leg)return msg('コピー元と同じ難易度です');
   const data=exp(),fn=($('nm').value||'chart')+(r.lg?'_legacy':'')+'_'+r.d+'.json';
   if(window.showDirectoryPicker){
     try{
-      if(!dh)dh=await showDirectoryPicker({mode:'readwrite',startIn:fh||nd||'documents'});
+      if(!dh)dh=await showDirectoryPicker({mode:'readwrite',startIn:d.fh||nd||'documents'});
       let ex=true;try{await dh.getFileHandle(fn)}catch(e){ex=false}
       if(ex&&!confirm(fn+' はすでにあります。上書きしますか?'))return;
       const h=await dh.getFileHandle(fn,{create:true}),w=await h.createWritable();
       await w.write(data);await w.close();
-      fh=h;dif=r.d;leg=r.lg;msg(fn+' にコピーして開きました');return;
+      d.fh=h;d.dif=r.d;d.leg=r.lg;msg(fn+' にコピーして開きました');return;
     }catch(e){if(e.name==='AbortError')return;dh=null}
   }
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));
   a.download=fn;a.click();URL.revokeObjectURL(a.href);
-  fh=null;dif=r.d;leg=r.lg;msg(fn+' をダウンロードに保存し、この難易度に切り替えました');
+  d.fh=null;d.dif=r.d;d.leg=r.lg;msg(fn+' をダウンロードに保存し、この難易度に切り替えました');
 }
 const PICK={types:[{description:'譜面JSON',accept:{'application/json':['.json']}}]};
 const pickOpts=()=>({...PICK,id:'notes',...(nd?{startIn:nd}:{})});
@@ -599,19 +630,19 @@ $('nd').onclick=async()=>{
   catch(e){if(e.name!=='AbortError')msg('フォルダを設定できませんでした')}
 };
 async function save(as){
-  const data=exp();
-  if(as||(!fh&&!dif)){const r=await askDif('難易度を選んで保存');if(!r)return;dif=r.d;leg=r.lg}
-  const fn=($('nm').value||'chart')+(leg?'_legacy':'')+(dif?'_'+dif:'')+'.json';
+  const d=docs[ai],data=exp();
+  if(as||(!d.fh&&!d.dif)){const r=await askDif('難易度を選んで保存');if(!r)return;d.dif=r.d;d.leg=r.lg}
+  const fn=($('nm').value||'chart')+(d.leg?'_legacy':'')+(d.dif?'_'+d.dif:'')+'.json';
   if(window.showSaveFilePicker){
     try{
-      if(as||!fh){fh=await showSaveFilePicker({...pickOpts(),suggestedName:fn});dh=null}
-      const w=await fh.createWritable();await w.write(data);await w.close();
-      msg(fh.name+' に保存しました');return;
-    }catch(e){if(e.name==='AbortError')return;fh=null}
+      if(as||!d.fh){d.fh=await showSaveFilePicker({...pickOpts(),suggestedName:fn});dh=null}
+      const w=await d.fh.createWritable();await w.write(data);await w.close();
+      d.dirty=false;msg(d.fh.name+' に保存しました');return;
+    }catch(e){if(e.name==='AbortError')return;d.fh=null}
   }
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));
-  a.download=fn;a.click();URL.revokeObjectURL(a.href);msg('ダウンロードに保存しました');
+  a.download=fn;a.click();URL.revokeObjectURL(a.href);d.dirty=false;msg('ダウンロードに保存しました');
 }
 $('fa').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
@@ -621,7 +652,7 @@ $('fa').onchange=async e=>{
 };
 $('fj').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
-  try{load(JSON.parse(await f.text()));fh=null;({d:dif,lg:leg}=parseName(f.name));msg('譜面を読み込みました')}
+  try{load(JSON.parse(await f.text()));setMeta(docs[ai],null,f.name);msg('譜面を読み込みました')}
   catch(err){msg('譜面のJSONを読み込めません')}
   e.target.value='';
 };
@@ -631,7 +662,7 @@ $('cd').onclick=copyTo;
 $('fj').addEventListener('click',async e=>{
   if(!window.showOpenFilePicker)return;
   e.preventDefault();
-  try{const[h]=await showOpenFilePicker(pickOpts());load(JSON.parse(await(await h.getFile()).text()));fh=h;dh=null;({d:dif,lg:leg}=parseName(h.name));msg(h.name+' を読み込みました')}
+  try{const[h]=await showOpenFilePicker(pickOpts());load(JSON.parse(await(await h.getFile()).text()));setMeta(docs[ai],h,h.name);dh=null;msg(h.name+' を読み込みました')}
   catch(err){if(err.name!=='AbortError')msg('譜面のJSONを読み込めません')}
 });
 $('pl').onclick=()=>playing?stop():play();
@@ -643,7 +674,7 @@ addEventListener('keydown',ev=>{
   else if(!c&&!ev.altKey&&/^[1-9]$/.test(ev.key)){const T=types[+ev.key-1];if(T){commit();curT=T.id;buildTabs()}}
   else if(!c&&!ev.altKey&&(k==='s'||k==='w')){const b=sec2beat(t),cb=Math.floor(b/4+1e-4)*4;seek(beat2sec(Math.max(0,k==='w'?cb+4:b-cb<1e-4?cb-4:cb)))}
   else if(!c&&!ev.altKey&&k==='q'){ev.preventDefault();bpmKey()}
-  else if(k==='pageup'||k==='pagedown'){ev.preventDefault();$('lpb').value=clamp(lpb()+(k==='pageup'?1:-1),1,16)}
+  else if(k==='pageup'||k==='pagedown'){ev.preventDefault();setLP(clamp(lpb()+(k==='pageup'?1:-1),1,16))}
   else if(ev.altKey&&k.startsWith('arrow')&&sel.size){ev.preventDefault();nudge(k)}
   else if(k==='arrowup'){ev.preventDefault();mv(c?1:1/lpb())}
   else if(k==='arrowdown'){ev.preventDefault();mv(-(c?1:1/lpb()))}
@@ -661,6 +692,40 @@ addEventListener('keydown',ev=>{
 function openPanel(id){closePanel();$(id).classList.add('open');$('pbk').classList.add('on');$(id).scrollTop=0}
 function closePanel(){$('a1').classList.remove('open');$('a2').classList.remove('open');$('pbk').classList.remove('on')}
 $('pbk').onclick=closePanel;
+function docAt(ev){const r=cv.getBoundingClientRect(),v=visIdx();return v[clamp(Math.floor((ev.clientX-r.left)/(W/v.length)),0,v.length-1)]}
+function pickDoc(ev){const i=docAt(ev);if(i!==ai)activate(i)}
+function syncUI(){$('ln').value=LANES;$('off').value=OF;$('lpb').value=LP;buildTabs()}
+function activate(i){
+  if(i===ai)return;
+  if(bq)closeBd(true);
+  commit();$('dt').hidden=true;$('cm').hidden=true;
+  ld(i);ai=i;syncUI();
+}
+function addDoc(j,h,name){
+  const d=mkDoc();docs.push(d);activate(docs.length-1);
+  load(j);undo=[];redo=[];setMeta(d,h,name);d.dirty=false;
+  msg(name+' を横に開きました');
+}
+async function openSide(){
+  if(docs.length>=3)return msg('横に開けるのは3つまでです');
+  if(!window.showOpenFilePicker)return $('fj2').click();
+  try{const[h]=await showOpenFilePicker(pickOpts());const j=JSON.parse(await(await h.getFile()).text());addDoc(j,h,h.name);dh=null}
+  catch(err){if(err.name!=='AbortError')msg('譜面のJSONを読み込めません')}
+}
+$('sd').onclick=openSide;
+$('fj2').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{addDoc(JSON.parse(await f.text()),null,f.name)}catch(err){msg('譜面のJSONを読み込めません')}
+  e.target.value='';
+};
+$('xd').onclick=()=>{
+  if(docs.length<2)return;
+  if(docs[ai].dirty&&!confirm('この譜面には保存していない変更があります。閉じますか?'))return;
+  if(bq){bq=null;$('bd').hidden=true}
+  $('dt').hidden=true;$('cm').hidden=true;
+  docs.splice(ai,1);ai=Math.min(ai,docs.length-1);gi=ai;applyDoc(docs[ai]);syncUI();
+  msg('譜面を閉じました');
+};
 let bq=null;
 function closeBd(cancel){
   const w=bq;bq=null;$('bd').hidden=true;
@@ -716,6 +781,8 @@ document.addEventListener('click',e=>{
   document.querySelectorAll('[data-a^="m_"]').forEach(x=>x.classList.toggle('on',x.dataset.a==='m_'+mode));
 });
 $('ln').oninput=()=>{LANES=clamp(+$('ln').value|0||5,1,12)};
+$('lpb').addEventListener('input',()=>{LP=Math.max(1,Math.min(16,(+$('lpb').value|0)||4))});
+$('off').addEventListener('input',()=>{OF=+$('off').value||0});
 $('bpm').onchange=()=>{const v=+$('bpm').value;if(!(v>0))return;push();tempo[segOfSec(t-offS())].bpm=v;retempo()};
 $('vol').oninput=()=>{clapVol=+$('vol').value};
 $('mvol').oninput=()=>{MG.gain.value=+$('mvol').value};
