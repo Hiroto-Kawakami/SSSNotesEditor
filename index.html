@@ -2,11 +2,11 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>譜面エディタ</title>
 <style>
 :root{--bg:#f2f3f8;--pn:#fff;--bd:#dfe2ec;--fg:#1f2433;--mu:#6b7287;--ac:#3b82f6}
-*{box-sizing:border-box}
+*{box-sizing:border-box;touch-action:manipulation}
 [hidden]{display:none!important}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--fg);font:13px/1.5 "Hiragino Sans","Yu Gothic UI",Meiryo,system-ui,sans-serif;display:flex;flex-direction:column}
@@ -33,7 +33,7 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:300px minmax(0,1fr) 
 aside .row>label{flex:1;min-width:0}
 aside input[type=color]{height:30px;padding:2px}
 #cw{flex:1;min-width:0;position:relative}
-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 #st{position:absolute;left:8px;top:6px;font-size:12px;color:var(--mu);pointer-events:none}
 aside{overflow:auto;padding:10px;display:flex;flex-direction:column;gap:10px}
 aside section{background:var(--pn);border:1px solid var(--bd);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px}
@@ -60,6 +60,8 @@ aside label.chk input{width:auto}
 #dt label{display:flex;flex-direction:column;gap:2px;color:var(--mu);font-size:12px}
 .ic.circle{border-radius:50%}
 .ic.diamond{transform:rotate(45deg) scale(.85)}
+.ic.ltri{clip-path:polygon(0 50%,100% 0,100% 100%)}
+.ic.rtri{clip-path:polygon(100% 50%,0 0,0 100%)}
 .pclose,.cb,.wo{display:none}
 @media (min-width:1101px) and (orientation:landscape){.wo{display:inline-flex}}
 #pbk{display:none;position:fixed;inset:0;z-index:29;background:rgba(0,0,0,.35)}
@@ -69,6 +71,7 @@ aside label.chk input{width:auto}
   aside{display:none}
   aside.open{display:flex;position:fixed;z-index:30;left:50%;top:50%;transform:translate(-50%,-50%);width:min(460px,94vw);max-height:88vh;background:var(--bg);border:1px solid var(--bd);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3)}
   .cb{display:inline-flex}
+  input[type=number],input[type=text],select{font-size:16px}
   .pclose{display:inline-flex;justify-content:center}
   #pbk.on{display:block}
 }
@@ -82,7 +85,7 @@ aside label.chk input{width:auto}
   <button id="pl" class="pri">▶ 再生・停止</button>
   <span id="tm">0:00.000</span>
   <button id="cp" data-a="clap" class="on">♪ クラップ</button>
-  <button class="cb" data-a="p1">⚙ 譜面設定</button><button class="cb" data-a="p2">✎ ノーツ種編集</button>
+  <button class="cb" data-a="p1">⚙ 譜面設定</button><button class="cb" data-a="p2">✎ ノーツ種編集</button><button class="cb" data-a="spd" title="選択中の点・ノーツのスクロール速度">⏩ 速度</button>
   <span class="sp"></span>
   <button data-a="undo">↶ 元に戻す</button><button data-a="redo">↷ やり直し</button>
 </div>
@@ -121,7 +124,7 @@ aside label.chk input{width:auto}
     <button class="pclose" data-a="pc">閉じる</button>
     <section><h3>選択中のノーツ種を編集</h3>
       <label>名前<input id="tn" type="text"></label>
-      <div class="row"><label>色<input id="tc" type="color"></label><label>形<select id="ts"><option value="circle">丸</option><option value="square">四角</option><option value="diamond">ひし形</option></select></label></div>
+      <div class="row"><label>色<input id="tc" type="color"></label><label>形<select id="ts"><option value="circle">丸</option><option value="square">四角</option><option value="diamond">ひし形</option><option value="ltri">左三角</option><option value="rtri">右三角</option></select></label></div>
       <label class="chk"><input id="tl" type="checkbox">ロング</label>
       <label class="chk"><input id="tf" type="checkbox">細かいグリッド</label>
       <button data-a="deltype">この種類を削除</button>
@@ -160,10 +163,12 @@ MG.connect(AC.destination);
 const DEF=JSON.stringify([
   {id:1,name:'通常',color:'#3b82f6',shape:'square',long:false,fine:false},
   {id:2,name:'ロング',color:'#84cc16',shape:'square',long:true,fine:false},
+  {id:5,name:'W',color:'#f97316',shape:'square',long:false,fine:false},
   {id:3,name:'トレース',color:'#eab308',shape:'circle',long:false,fine:true},
   {id:4,name:'ダメージ',color:'#ef4444',shape:'diamond',long:false,fine:true},
-  {id:5,name:'W',color:'#f97316',shape:'square',long:false,fine:false},
-  {id:6,name:'連打',color:'#8b5cf6',shape:'square',long:true,fine:false}]);
+  {id:6,name:'連打',color:'#8b5cf6',shape:'square',long:true,fine:false},
+  {id:7,name:'左',color:'#06b6d4',shape:'ltri',long:false,fine:true},
+  {id:8,name:'右',color:'#ec4899',shape:'rtri',long:false,fine:true}]);
 let tempo=[{n:0,l:4,bpm:120}],Tc=[0],types=JSON.parse(DEF),curT=1,clapOn=true,clapVol=.5,ls=0;
 let W=0,H=0,notes=[],buf=null,peaks=[],t=0,pps=160,playing=false,t0=0,c0=0,src=null,pend=null,hover=null,sel=new Set(),mode='place',drag=null,hp=null,ps=new Set(),clip=[],mom=0,box=null,suppress=false,undo=[],redo=[],msgText='',lastSt='';
 let LP=4,OF=0,ai=0,gi=0;
@@ -223,6 +228,8 @@ function pos(ev){
 function head(x,y,lw,stroke,sh){
   g.beginPath();
   if(sh==='circle')g.arc(x,y,9,0,7);
+  else if(sh==='ltri'){g.moveTo(x-13,y);g.lineTo(x+11,y-11);g.lineTo(x+11,y+11);g.closePath()}
+  else if(sh==='rtri'){g.moveTo(x+13,y);g.lineTo(x-11,y-11);g.lineTo(x-11,y+11);g.closePath()}
   else if(sh==='diamond'){g.moveTo(x,y-11);g.lineTo(x+13,y);g.lineTo(x,y+11);g.lineTo(x-13,y);g.closePath()}
   else{const hw=lw*.36;g.roundRect(x-hw,y-7,hw*2,14,5)}
   stroke?g.stroke():g.fill();
@@ -334,7 +341,7 @@ function buildTabs(only){
   for(const T of types){
     const b=document.createElement('button'),ic=document.createElement('i');
     b.dataset.a='t_'+T.id;if(T.id===curT)b.className='on';
-    ic.className='ic '+(['circle','diamond'].includes(T.shape)?T.shape:'square');ic.style.background=T.color;
+    ic.className='ic '+(['circle','diamond','ltri','rtri'].includes(T.shape)?T.shape:'square');ic.style.background=T.color;
     b.append(ic,T.name);box.append(b);
   }
   if(only)return;
@@ -444,8 +451,10 @@ $('dok').onclick=()=>{
 $('dx').onclick=()=>{$('dt').hidden=true};
 $('dt').addEventListener('keydown',e=>{if(e.key==='Enter')$('dok').click();else if(e.key==='Escape')$('dt').hidden=true});
 const rel=ev=>{const r=cv.getBoundingClientRect();return{x:ev.clientX-r.left,y:ev.clientY-r.top}};
+let swc=false,swx=false;
 cv.addEventListener('mousedown',ev=>{
-  pickDoc(ev);
+  swx=false;
+  if(pickDoc(ev)){if(ev.button===0){swc=true;return}swx=true}
   if(ev.button!==0||pend)return;
   {const p0=pos(ev),h0=p0&&hit(p0),q0=rel(ev);if(h0&&!(ev.ctrlKey||ev.metaKey)){drag={h:h0,pr:hp?[hp]:partsOf(h0),one:!!(hp&&h0.p&&h0.p.length),x:q0.x,y:q0.y,on:false,al:0,ab:0,s:gp(ev)};return}}
   if(ev.ctrlKey||ev.metaKey||mode==='select'){const q=rel(ev);box={x0:q.x,y0:q.y,x1:q.x,y1:q.y,add:ev.shiftKey}}
@@ -460,6 +469,7 @@ addEventListener('mousemove',ev=>{
   }
 });
 addEventListener('mouseup',()=>{
+  if(swc){swc=false;suppress=true;setTimeout(()=>{suppress=false},0);return}
   if(drag){const d=drag;drag=null;if(d.on){sortN();suppress=true;setTimeout(()=>{suppress=false},0)}return}
   if(!box)return;
   const b=box;box=null;
@@ -500,7 +510,7 @@ function ctx(ev){
   if(hp||!(h.p&&h.p.length)){const pr=hp?[hp]:partsOf(h);if(!pr.every(x=>ps.has(x)))setPs(pr);openDetail(ev.clientX,ev.clientY);return}
   openMenu(ev.clientX,ev.clientY,h,p);
 }
-cv.addEventListener('contextmenu',ev=>{ev.preventDefault();pickDoc(ev);ctx(ev)});
+cv.addEventListener('contextmenu',ev=>{ev.preventDefault();if(swx){swx=false;return}if(pickDoc(ev))return;ctx(ev)});
 cv.addEventListener('mousemove',ev=>{hover=docAt(ev)===ai?pos(ev):null});
 cv.addEventListener('mouseleave',()=>{hover=null});
 cv.addEventListener('wheel',ev=>{
@@ -521,15 +531,16 @@ function startMom(v){
   };
   mom=requestAnimationFrame(step);
 }
+['gesturestart','gesturechange','gestureend'].forEach(n=>document.addEventListener(n,e=>e.preventDefault()));
 let tc=null;
 const tdist=ts=>Math.hypot(ts[0].clientX-ts[1].clientX,ts[0].clientY-ts[1].clientY);
 cv.addEventListener('touchstart',ev=>{
   if(tc)clearTimeout(tc.lp);
   const was=!!mom;stopMom();
-  if(ev.touches.length<2)pickDoc(ev.touches[0]);
+  const sw=ev.touches.length<2&&pickDoc(ev.touches[0]);
   if(ev.touches.length>=2){tc={zoom:true,d:tdist(ev.touches),p:pps};return}
-  const q=ev.touches[0],o={x:q.clientX,y:q.clientY,t,on:false,long:false,st:was,sm:[]};
-  o.lp=setTimeout(()=>{if(tc===o&&!o.on){o.long=true;ctx({clientX:o.x,clientY:o.y})}},500);
+  const q=ev.touches[0],o={x:q.clientX,y:q.clientY,t,on:false,long:false,st:was||sw,sm:[]};
+  o.lp=setTimeout(()=>{if(tc===o&&!o.on&&!o.st){o.long=true;ctx({clientX:o.x,clientY:o.y})}},450);
   tc=o;
 },{passive:true});
 cv.addEventListener('touchmove',ev=>{
@@ -693,7 +704,7 @@ function openPanel(id){closePanel();$(id).classList.add('open');$('pbk').classLi
 function closePanel(){$('a1').classList.remove('open');$('a2').classList.remove('open');$('pbk').classList.remove('on')}
 $('pbk').onclick=closePanel;
 function docAt(ev){const r=cv.getBoundingClientRect(),v=visIdx();return v[clamp(Math.floor((ev.clientX-r.left)/(W/v.length)),0,v.length-1)]}
-function pickDoc(ev){const i=docAt(ev);if(i!==ai)activate(i)}
+function pickDoc(ev){const i=docAt(ev);if(i===ai)return false;activate(i);return true}
 function syncUI(){$('ln').value=LANES;$('off').value=OF;$('lpb').value=LP;buildTabs()}
 function activate(i){
   if(i===ai)return;
@@ -766,6 +777,7 @@ const ACT={
   addtype:()=>{push();const id=Math.max(...types.map(x=>x.id))+1;types.push({id,name:'種類'+id,color:'#10b981',shape:'circle',long:false});curT=id;buildTabs()},
   deltype:()=>{if(types.length<2)return msg('最後の種類は削除できません');if(notes.some(n=>n.t===curT))return msg('この種類のノーツがあるため削除できません');push();types=types.filter(x=>x.id!==curT);curT=types[0].id;buildTabs()},
   nl:()=>nudge('arrowleft'),nr:()=>nudge('arrowright'),nu:()=>nudge('arrowup'),nd:()=>nudge('arrowdown'),
+  spd:()=>{if(!ps.size)return msg('選択モードで点やノーツを選んでから押してください');openDetail(Math.max(8,innerWidth/2-120),120)},
   p1:()=>openPanel('a1'),p2:()=>openPanel('a2'),pc:()=>closePanel(),
   addbpm:()=>{closePanel();bpmKey()},
   delbpm:()=>{const i=segOfSec(t-offS());if(!i)return msg('先頭のBPMは削除できません');push();tempo.splice(i,1);retempo()},
